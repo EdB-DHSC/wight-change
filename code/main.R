@@ -17,8 +17,8 @@ hse07_p <- hse07 %>%
   select(age,weight,height) %>% 
   mutate(year = '2007') %>% 
   mutate(age_groups = case_when(age>19&age<40 ~ '20-40',
-                                age>39&age<60 ~ '40-60',
-                                age>59 ~ '60+')) %>% 
+                                age>39&age<65 ~ '40-65',
+                                age>64&age<75 ~ '65-75')) %>% 
   filter(!is.na(age_groups),
          !is.na(weight),
          !is.na(height)) %>% 
@@ -28,8 +28,8 @@ hse17_p <- hse17 %>%
   select(Age35g,Weight,Height) %>% 
   mutate(year = '2017') %>% 
   mutate(age_groups = case_when(Age35g %in% c(8,9,10,11) ~ '20-40',
-                                Age35g %in% c(12,13,14,15) ~ '40-60',
-                                Age35g>15 ~ '60+')) %>% 
+                                Age35g %in% c(12,13,14,15,16) ~ '40-65',
+                                Age35g %in% c(17,18) ~ '65-75')) %>% 
   filter(!is.na(age_groups),
          !is.na(Weight),
          !is.na(Height)) %>% 
@@ -38,6 +38,8 @@ hse17_p <- hse17 %>%
   select(-Age35g)
 
 hse_percentile <- bind_rows(hse07_p,hse17_p) %>% 
+  mutate(BMI = weight/(height/100)^2) %>% 
+  filter(BMI>18.5) %>% 
   group_by(year,age_groups) %>%
   summarise(percent05 = quantile(weight, probs = .05),
             percent10 = quantile(weight, probs = .1),
@@ -58,9 +60,34 @@ hse_percentile <- bind_rows(hse07_p,hse17_p) %>%
             percent85 = quantile(weight, probs = .85),
             percent90 = quantile(weight, probs = .9),
             percent95 = quantile(weight, probs = .95)) %>% 
-  pivot_longer(cols = percent05:percent95) 
+  pivot_longer(cols = percent05:percent95) %>% 
+  mutate(percentile = parse_number(name)) %>% 
+  select(-name)
 
 #############################
 # SEC 3 - ANALYSIS #
 ####################
 
+hse_percentile %>% ggplot(aes(percentile,value,col = year)) +
+  geom_line() +
+  facet_wrap(~age_groups) +
+  labs(title = 'Weight gain from 2007 - 2017',
+       y = 'Weight (kg)',
+       caption = 'source: HSE') +
+  scale_y_continuous(limits = c(0,130))
+
+hse_percentile %>% pivot_wider(names_from = year,
+                               values_from = value) %>% 
+  mutate(change = `2017` - `2007`) %>% 
+  ggplot(aes(percentile,change)) +
+  geom_line() +
+  facet_wrap(~age_groups) +
+  labs(title = 'Weight gain from 2007 - 2017',
+       y = 'Weight (kg)',
+       caption = 'source: HSE') 
+
+hse_percentile %>% pivot_wider(names_from = year,
+                               values_from = value) %>% 
+  mutate(change = `2017` - `2007`) %>% 
+  select(-`2007`,-`2017`) %>% 
+  filter(percentile %in% c(10,25,50,75,90))
